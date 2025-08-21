@@ -17,8 +17,7 @@ def ensure_dir():
 
 def load_df() -> pd.DataFrame:
     if os.path.exists(CSV_PATH):
-        df = pd.read_csv(CSV_PATH, encoding="utf-8")
-        # Si la tabla es antigua y no tiene id_product → crear columna
+        df = pd.read_csv(CSV_PATH, encoding="utf-8", dtype={"id_product": "Int64"})
         if "id_product" not in df.columns:
             df.insert(0, "id_product", range(1, len(df) + 1))
         return df
@@ -26,6 +25,8 @@ def load_df() -> pd.DataFrame:
 
 def save_df(df: pd.DataFrame):
     ensure_dir()
+    if "id_product" in df.columns:
+        df["id_product"] = df["id_product"].astype(int)
     df.to_csv(CSV_PATH, index=False, encoding="utf-8")
 
 def validate(nombre: str, precio, categorias: list, en_venta_label: str):
