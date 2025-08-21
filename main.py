@@ -16,25 +16,27 @@ ALLOWED_CATEGORIES = [
     "Chocolates", "Caramelos", "Mashmelos", "Galletas", "Salamos", "Gomas de mascar"
 ]
 
+st.set_page_config(page_title="Confitería Duicino", page_icon="🍬", layout="wide")
+
 # ------------------- HELPERS -------------------
 def validate(nombre: str, precio, categorias: list, en_venta_label: str):
     if len(nombre.strip()) == 0 or len(nombre.strip()) > 20:
-        raise ValueError("El nombre no puede estar vacío ni superar 20 caracteres.")
+        raise ValueError("⚠️ El nombre no puede estar vacío ni superar 20 caracteres.")
     if precio is None:
-        raise ValueError("Por favor verifique el campo del precio")
+        raise ValueError("⚠️ Por favor ingrese un precio válido.")
     try:
         p = float(precio)
     except Exception:
-        raise ValueError("Por favor verifique el campo precio")
+        raise ValueError("⚠️ El precio debe ser un número.")
     if not (0 < p < 999):
-        raise ValueError("El precio debe ser mayor a 0 y menor a 999.")
+        raise ValueError("⚠️ El precio debe ser mayor a 0 y menor a 999.")
     if not categorias:
-        raise ValueError("Debe elegir al menos una categoría.")
+        raise ValueError("⚠️ Seleccione al menos una categoría.")
     for c in categorias:
         if c not in ALLOWED_CATEGORIES:
-            raise ValueError(f"Categoría inválida: {c}")
+            raise ValueError(f"⚠️ Categoría inválida: {c}")
     if en_venta_label not in ["Si", "No"]:
-        raise ValueError("Valor inválido para ¿está en venta?")
+        raise ValueError("⚠️ Valor inválido para ¿está en venta?")
 
     return (
         nombre.strip(),
@@ -43,46 +45,67 @@ def validate(nombre: str, precio, categorias: list, en_venta_label: str):
         (en_venta_label == "Si"),
     )
 
+def save_product(nombre, precio, categorias, en_venta):
+    return supabase.table("confiteria-duicino").insert({
+        "nombre": nombre,
+        "precio": precio,
+        "categorias": ";".join(categorias),
+        "en_venta": en_venta,
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }).execute()
+
+def update_product(edit_id, nombre, precio, categorias, en_venta):
+    return supabase.table("confiteria-duicino").update({
+        "nombre": nombre,
+        "precio": precio,
+        "categorias": ";".join(categorias),
+        "en_venta": en_venta,
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }).eq("id_product", edit_id).execute()
+
+def load_data():
+    data = supabase.table("confiteria-duicino").select("*").execute()
+    return data.data if data.data else []
+
+
 # ------------------- UI -------------------
-st.title("Confitería Duicino - Registro de productos (Supabase)")
+st.title("🍬 Confitería Duicino")
+st.markdown("### Registro y gestión de productos con **Supabase**")
 
 # ---------- Formulario: Crear producto ----------
-with st.form("form-producto", clear_on_submit=True):
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        nombre = st.text_input("Nombre del Producto")
-    with col2:
-        precio = st.number_input("Precio (S/)", min_value=0.0, max_value=998.99, step=0.10, format="%.2f")
-    categorias = st.multiselect("Categorías", ALLOWED_CATEGORIES)
-    en_venta_label = st.radio("¿El producto está en venta?", options=["Si", "No"], horizontal=True)
+with st.expander("➕ Registrar nuevo producto", expanded=True):
+    with st.form("form-producto", clear_on_submit=True):
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            nombre = st.text_input("Nombre del Producto")
+        with col2:
+            precio = st.number_input("Precio (S/)", min_value=0.0, max_value=998.99, step=0.10, format="%.2f")
 
-    submitted = st.form_submit_button("Guardar")
+        categorias = st.multiselect("Categorías", ALLOWED_CATEGORIES)
+        en_venta_label = st.radio("¿El producto está en venta?", options=["Si", "No"], horizontal=True)
 
-    if submitted:
-        try:
-            nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
-            supabase.table("confiteria-duicino").insert({
-                "nombre": nombre,
-                "precio": precio,
-                "categorias": ";".join(categorias),
-                "en_venta": en_venta,
-                "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-            st.success("✅ Producto guardado correctamente")
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ {str(e)}")
+        submitted = st.form_submit_button("💾 Guardar producto")
+
+        if submitted:
+            try:
+                nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
+                save_product(nombre, precio, categorias, en_venta)
+                st.success("✅ Producto guardado correctamente")
+                st.rerun()
+            except Exception as e:
+                st.error(str(e))
+
+st.divider()
 
 # ---------- Mostrar tabla ----------
 st.subheader("📋 Lista de productos registrados")
 
-data = supabase.table("confiteria-duicino").select("*").execute()
-rows = data.data if data.data else []
+rows = load_data()
 
 if rows:
     for row in rows:
-        with st.expander(f"🟢 {row['nombre']} (S/{row['precio']})"):
-            st.write(f"**ID:** {row['id_product']}")
+        with st.expander(f"🟢 {row['nombre']} — S/{row['precio']:.2f}"):
+            st.write(f"**ID:** `{row['id_product']}`")
             st.write(f"**Categorías:** {row['categorias']}")
             st.write(f"**En venta:** {'✅ Sí' if row['en_venta'] else '❌ No'}")
             st.write(f"**Fecha registro:** {row['ts']}")
@@ -90,11 +113,13 @@ if rows:
             col1, col2 = st.columns(2)
             if col1.button("🗑️ Eliminar", key=f"delete-{row['id_product']}"):
                 supabase.table("confiteria-duicino").delete().eq("id_product", row["id_product"]).execute()
+                st.warning(f"⚠️ Producto eliminado: {row['nombre']}")
                 st.rerun()
 
             if col2.button("✏️ Editar", key=f"edit-{row['id_product']}"):
                 st.session_state["edit_id"] = row["id_product"]
 
+    # ---------- Editar producto ----------
     if "edit_id" in st.session_state:
         edit_id = st.session_state["edit_id"]
         row = supabase.table("confiteria-duicino").select("*").eq("id_product", edit_id).execute().data[0]
@@ -110,26 +135,23 @@ if rows:
             if actualizar:
                 try:
                     nombre, precio, categorias, en_venta = validate(new_nombre, new_precio, new_categorias, new_en_venta)
-                    supabase.table("confiteria-duicino").update({
-                        "nombre": nombre,
-                        "precio": precio,
-                        "categorias": ";".join(categorias),
-                        "en_venta": en_venta,
-                        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }).eq("id_product", edit_id).execute()
+                    update_product(edit_id, nombre, precio, categorias, en_venta)
                     st.success("✅ Producto actualizado correctamente")
                     del st.session_state["edit_id"]
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ {str(e)}")
+                    st.error(str(e))
 
-    if st.button("⚠️ Borrar toda la tabla de productos"):
+    # ---------- Acciones globales ----------
+    st.divider()
+    col1, col2 = st.columns([1, 3])
+    if col1.button("⚠️ Borrar toda la tabla"):
         supabase.table("confiteria-duicino").delete().execute()
-        st.warning("⚠️ Toda la data ha sido eliminada")
+        st.warning("⚠️ Todos los productos han sido eliminados")
         st.rerun()
 
     df = pd.DataFrame(rows)
-    st.download_button(
+    col2.download_button(
         label="📥 Descargar CSV",
         data=df.to_csv(index=False).encode("utf-8"),
         file_name="confiteria-duicino.csv",
