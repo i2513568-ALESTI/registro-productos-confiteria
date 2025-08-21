@@ -1,10 +1,21 @@
 import streamlit as st
 from datetime import datetime
 from supabase import create_client, Client
+import os
+from dotenv import load_dotenv
 
 # ------------------- CONFIG -------------------
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+load_dotenv()
+
+SUPABASE_URL = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error(
+        "Faltan credenciales de Supabase. Agrega SUPABASE_URL y SUPABASE_KEY en .streamlit/secrets.toml, o configúralas como variables de entorno."
+    )
+    st.stop()
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 ALLOWED_CATEGORIES = [

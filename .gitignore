@@ -6,3 +6,4 @@ venv_registro_productos_confiteria/
 
 # Archivos de configuración sensible
 .streamlit/secrets.toml
+.env
