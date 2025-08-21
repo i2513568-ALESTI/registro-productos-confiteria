@@ -1,4 +1,5 @@
 import os
+import uuid
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -16,7 +17,7 @@ def ensure_dir():
 def load_df() -> pd.DataFrame:
     if os.path.exists(CSV_PATH):
         return pd.read_csv(CSV_PATH, encoding="utf-8")
-    return pd.DataFrame(columns=["nombre", "precio", "categorias", "en_venta", "ts"])
+    return pd.DataFrame(columns=["id_product", "nombre", "precio", "categorias", "en_venta", "ts"])
 
 def save_df(df: pd.DataFrame):
     ensure_dir()
@@ -71,6 +72,7 @@ with st.form("form-producto", clear_on_submit=True):
             nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
             df = load_df()
             nuevo = pd.DataFrame([{
+                "id_product": str(uuid.uuid4()),  # 🔑 UUID único
                 "nombre": nombre,
                 "precio": precio,
                 "categorias": ";".join(categorias),
