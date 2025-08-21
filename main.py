@@ -4,6 +4,7 @@ from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 import pandas as pd
+from uuid import uuid4  # <-- IMPORTANTE: para generar IDs únicos
 
 # ------------------- CONFIG -------------------
 load_dotenv()
@@ -61,6 +62,7 @@ with st.form("form-producto", clear_on_submit=True):
         try:
             nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
             supabase.table("confiteria_duicino").insert({
+                "id_product": str(uuid4()),  # <-- SE AGREGA ID ÚNICO
                 "nombre": nombre,
                 "precio": precio,
                 "categorias": ";".join(categorias),
@@ -71,6 +73,7 @@ with st.form("form-producto", clear_on_submit=True):
             st.rerun()
         except Exception as e:
             st.error(f"❌ {str(e)}")
+
 
 # ---------- Mostrar tabla ----------
 st.subheader("📋 Lista de productos registrados")
