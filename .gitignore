@@ -1,2 +1,8 @@
-venv_registro_productos_confiteria/ 
+# Entorno virtual
+venv_registro_productos_confiteria/
+
+# Archivos de datos
 *.csv
+
+# Archivos de configuración sensible
+.streamlit/secrets.toml

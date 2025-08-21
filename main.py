@@ -1,34 +1,17 @@
-import os
-import pandas as pd
 import streamlit as st
 from datetime import datetime
+from supabase import create_client, Client
 
 # ------------------- CONFIG -------------------
-DATA_DIR = "datos_sinteticos"
-CSV_PATH = os.path.join(DATA_DIR, "products.csv")
+SUPABASE_URL = st.secrets["https://qpgrqxpqwrnlyocougej.supabase.co"]
+SUPABASE_KEY = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwZ3JxeHBxd3JubHlvY291Z2VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3OTMxNjcsImV4cCI6MjA3MTM2OTE2N30.nX04Z4m0U3r77KWWhDW3-Xa9876gsDYPVLnOCK969A0"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 ALLOWED_CATEGORIES = [
     "Chocolates", "Caramelos", "Mashmelos", "Galletas", "Salamos", "Gomas de mascar"
 ]
 
 # ------------------- HELPERS -------------------
-def ensure_dir():
-    os.makedirs(DATA_DIR, exist_ok=True)
-
-def load_df() -> pd.DataFrame:
-    if os.path.exists(CSV_PATH):
-        df = pd.read_csv(CSV_PATH, encoding="utf-8", dtype={"id_product": "Int64"})
-        if "id_product" not in df.columns:
-            df.insert(0, "id_product", range(1, len(df) + 1))
-        return df
-    return pd.DataFrame(columns=["id_product", "nombre", "precio", "categorias", "en_venta", "ts"])
-
-def save_df(df: pd.DataFrame):
-    ensure_dir()
-    if "id_product" in df.columns:
-        df["id_product"] = df["id_product"].astype(int)
-    df.to_csv(CSV_PATH, index=False, encoding="utf-8")
-
 def validate(nombre: str, precio, categorias: list, en_venta_label: str):
     if len(nombre.strip()) == 0 or len(nombre.strip()) > 20:
         raise ValueError("El nombre no puede estar vacío ni superar 20 caracteres.")
@@ -47,6 +30,7 @@ def validate(nombre: str, precio, categorias: list, en_venta_label: str):
             raise ValueError(f"Categoría inválida: {c}")
     if en_venta_label not in ["Si", "No"]:
         raise ValueError("Valor inválido para ¿está en venta?")
+
     return (
         nombre.strip(),
         round(p, 2),
@@ -55,36 +39,30 @@ def validate(nombre: str, precio, categorias: list, en_venta_label: str):
     )
 
 # ------------------- UI -------------------
-st.title("Confitería Duicino - Registro de productos")
-
-df = load_df()
+st.title("Confitería Duicino - Registro de productos (Supabase)")
 
 # ---------- Formulario: Crear producto ----------
 with st.form("form-producto", clear_on_submit=True):
-    col1, col2 = st.columns([2,1])
+    col1, col2 = st.columns([2, 1])
     with col1:
         nombre = st.text_input("Nombre del Producto")
     with col2:
         precio = st.number_input("Precio (S/)", min_value=0.0, max_value=998.99, step=0.10, format="%.2f")
     categorias = st.multiselect("Categorías", ALLOWED_CATEGORIES)
-    en_venta_label = st.radio("¿El producto está en venta?", options=["Si","No"], horizontal=True)
+    en_venta_label = st.radio("¿El producto está en venta?", options=["Si", "No"], horizontal=True)
 
     submitted = st.form_submit_button("Guardar")
 
     if submitted:
         try:
             nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
-            new_id = 1 if df.empty else int(df["id_product"].max()) + 1
-            nuevo = pd.DataFrame([{
-                "id_product": new_id,
+            supabase.table("products").insert({
                 "nombre": nombre,
                 "precio": precio,
                 "categorias": ";".join(categorias),
                 "en_venta": en_venta,
                 "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }])
-            df = pd.concat([df, nuevo], ignore_index=True)
-            save_df(df)
+            }).execute()
             st.success("✅ Producto guardado correctamente")
             st.rerun()
         except Exception as e:
@@ -93,8 +71,11 @@ with st.form("form-producto", clear_on_submit=True):
 # ---------- Mostrar tabla ----------
 st.subheader("📋 Lista de productos registrados")
 
-if not df.empty:
-    for _, row in df.iterrows():
+data = supabase.table("products").select("*").execute()
+rows = data.data if data.data else []
+
+if rows:
+    for row in rows:
         with st.expander(f"🟢 {row['nombre']} (S/{row['precio']})"):
             st.write(f"**ID:** {row['id_product']}")
             st.write(f"**Categorías:** {row['categorias']}")
@@ -104,8 +85,7 @@ if not df.empty:
             col1, col2 = st.columns(2)
             # Botón eliminar
             if col1.button("🗑️ Eliminar", key=f"delete-{row['id_product']}"):
-                df = df[df["id_product"] != row["id_product"]]
-                save_df(df)
+                supabase.table("products").delete().eq("id_product", row["id_product"]).execute()
                 st.rerun()
 
             # Botón editar
@@ -115,7 +95,8 @@ if not df.empty:
     # ---------- Editar producto ----------
     if "edit_id" in st.session_state:
         edit_id = st.session_state["edit_id"]
-        row = df[df["id_product"] == edit_id].iloc[0]
+        row = supabase.table("products").select("*").eq("id_product", edit_id).execute().data[0]
+
         st.subheader(f"✏️ Editar producto: {row['nombre']}")
         with st.form("form-editar", clear_on_submit=False):
             new_nombre = st.text_input("Nuevo nombre", value=row["nombre"])
@@ -127,10 +108,13 @@ if not df.empty:
             if actualizar:
                 try:
                     nombre, precio, categorias, en_venta = validate(new_nombre, new_precio, new_categorias, new_en_venta)
-                    df.loc[df["id_product"] == edit_id, ["nombre","precio","categorias","en_venta","ts"]] = [
-                        nombre, precio, ";".join(categorias), en_venta, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    ]
-                    save_df(df)
+                    supabase.table("products").update({
+                        "nombre": nombre,
+                        "precio": precio,
+                        "categorias": ";".join(categorias),
+                        "en_venta": en_venta,
+                        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }).eq("id_product", edit_id).execute()
                     st.success("✅ Producto actualizado correctamente")
                     del st.session_state["edit_id"]
                     st.rerun()
@@ -139,12 +123,13 @@ if not df.empty:
 
     # ---------- Botón para borrar todo ----------
     if st.button("⚠️ Borrar toda la tabla de productos"):
-        df = pd.DataFrame(columns=["id_product", "nombre", "precio", "categorias", "en_venta", "ts"])
-        save_df(df)
+        supabase.table("products").delete().neq("id_product", 0).execute()
         st.warning("⚠️ Toda la data ha sido eliminada")
         st.rerun()
 
     # ---------- Botón para descargar ----------
+    import pandas as pd
+    df = pd.DataFrame(rows)
     st.download_button(
         label="📥 Descargar CSV",
         data=df.to_csv(index=False).encode("utf-8"),
