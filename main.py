@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
+# ------------------- CONFIG -------------------
 DATA_DIR = "datos_sinteticos"
 CSV_PATH = os.path.join(DATA_DIR, "products.csv")
 
@@ -10,12 +11,17 @@ ALLOWED_CATEGORIES = [
     "Chocolates", "Caramelos", "Mashmelos", "Galletas", "Salamos", "Gomas de mascar"
 ]
 
+# ------------------- HELPERS -------------------
 def ensure_dir():
     os.makedirs(DATA_DIR, exist_ok=True)
 
 def load_df() -> pd.DataFrame:
     if os.path.exists(CSV_PATH):
-        return pd.read_csv(CSV_PATH, encoding="utf-8")
+        df = pd.read_csv(CSV_PATH, encoding="utf-8")
+        # Si la tabla es antigua y no tiene id_product → crear columna
+        if "id_product" not in df.columns:
+            df.insert(0, "id_product", range(1, len(df) + 1))
+        return df
     return pd.DataFrame(columns=["id_product", "nombre", "precio", "categorias", "en_venta", "ts"])
 
 def save_df(df: pd.DataFrame):
@@ -47,14 +53,12 @@ def validate(nombre: str, precio, categorias: list, en_venta_label: str):
         (en_venta_label == "Si"),
     )
 
-#----------------------------------------------- UI ------------------------------------------------------
-
+# ------------------- UI -------------------
 st.title("Confitería Duicino - Registro de productos")
 
-# Cargar base
 df = load_df()
 
-# Formulario para agregar producto
+# ---------- Formulario: Crear producto ----------
 with st.form("form-producto", clear_on_submit=True):
     col1, col2 = st.columns([2,1])
     with col1:
@@ -69,10 +73,7 @@ with st.form("form-producto", clear_on_submit=True):
     if submitted:
         try:
             nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
-
-            # Generar nuevo id
-            new_id = 1 if df.empty else df["id_product"].max() + 1
-
+            new_id = 1 if df.empty else int(df["id_product"].max()) + 1
             nuevo = pd.DataFrame([{
                 "id_product": new_id,
                 "nombre": nombre,
@@ -84,14 +85,15 @@ with st.form("form-producto", clear_on_submit=True):
             df = pd.concat([df, nuevo], ignore_index=True)
             save_df(df)
             st.success("✅ Producto guardado correctamente")
+            st.rerun()
         except Exception as e:
             st.error(f"❌ {str(e)}")
 
-# Mostrar tabla con opciones
+# ---------- Mostrar tabla ----------
 st.subheader("📋 Lista de productos registrados")
 
 if not df.empty:
-    for i, row in df.iterrows():
+    for _, row in df.iterrows():
         with st.expander(f"🟢 {row['nombre']} (S/{row['precio']})"):
             st.write(f"**ID:** {row['id_product']}")
             st.write(f"**Categorías:** {row['categorias']}")
@@ -109,7 +111,7 @@ if not df.empty:
             if col2.button("✏️ Editar", key=f"edit-{row['id_product']}"):
                 st.session_state["edit_id"] = row["id_product"]
 
-    # Si se selecciona editar
+    # ---------- Editar producto ----------
     if "edit_id" in st.session_state:
         edit_id = st.session_state["edit_id"]
         row = df[df["id_product"] == edit_id].iloc[0]
@@ -134,14 +136,14 @@ if not df.empty:
                 except Exception as e:
                     st.error(f"❌ {str(e)}")
 
-    # Botón para borrar todo
+    # ---------- Botón para borrar todo ----------
     if st.button("⚠️ Borrar toda la tabla de productos"):
         df = pd.DataFrame(columns=["id_product", "nombre", "precio", "categorias", "en_venta", "ts"])
         save_df(df)
         st.warning("⚠️ Toda la data ha sido eliminada")
         st.rerun()
 
-    # Botón para descargar
+    # ---------- Botón para descargar ----------
     st.download_button(
         label="📥 Descargar CSV",
         data=df.to_csv(index=False).encode("utf-8"),
