@@ -8,17 +8,9 @@ import pandas as pd
 # ------------------- CONFIG -------------------
 load_dotenv()
 
-SUPABASE_URL = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error(
-        "Faltan credenciales de Supabase. Agrega SUPABASE_URL y SUPABASE_KEY en .streamlit/secrets.toml, o configúralas como variables de entorno."
-    )
-    st.stop()
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 ALLOWED_CATEGORIES = [
     "Chocolates", "Caramelos", "Mashmelos", "Galletas", "Salamos", "Gomas de mascar"
 ]
