@@ -4,7 +4,6 @@ from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 import pandas as pd
-from uuid import uuid4  # <-- IMPORTANTE: para generar IDs únicos
 
 # ------------------- CONFIG -------------------
 load_dotenv()
@@ -12,6 +11,7 @@ load_dotenv()
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
+
 ALLOWED_CATEGORIES = [
     "Chocolates", "Caramelos", "Mashmelos", "Galletas", "Salamos", "Gomas de mascar"
 ]
@@ -62,7 +62,6 @@ with st.form("form-producto", clear_on_submit=True):
         try:
             nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
             supabase.table("confiteria-duicino").insert({
-                "id_product": str(uuid4()),  # <-- SE AGREGA ID ÚNICO
                 "nombre": nombre,
                 "precio": precio,
                 "categorias": ";".join(categorias),
@@ -83,22 +82,19 @@ rows = data.data if data.data else []
 if rows:
     for row in rows:
         with st.expander(f"🟢 {row['nombre']} (S/{row['precio']})"):
-            st.write(f"**ID:** {row['id_product']}")  # ⚠️ cámbialo a row['id'] si tu tabla usa 'id'
+            st.write(f"**ID:** {row['id_product']}")
             st.write(f"**Categorías:** {row['categorias']}")
             st.write(f"**En venta:** {'✅ Sí' if row['en_venta'] else '❌ No'}")
             st.write(f"**Fecha registro:** {row['ts']}")
 
             col1, col2 = st.columns(2)
-            # Botón eliminar
             if col1.button("🗑️ Eliminar", key=f"delete-{row['id_product']}"):
                 supabase.table("confiteria-duicino").delete().eq("id_product", row["id_product"]).execute()
                 st.rerun()
 
-            # Botón editar
             if col2.button("✏️ Editar", key=f"edit-{row['id_product']}"):
                 st.session_state["edit_id"] = row["id_product"]
 
-    # ---------- Editar producto ----------
     if "edit_id" in st.session_state:
         edit_id = st.session_state["edit_id"]
         row = supabase.table("confiteria-duicino").select("*").eq("id_product", edit_id).execute().data[0]
@@ -109,7 +105,7 @@ if rows:
             new_precio = st.number_input("Nuevo precio", value=float(row["precio"]), min_value=0.0, max_value=998.99, step=0.10)
             new_categorias = st.multiselect("Nuevas categorías", ALLOWED_CATEGORIES, default=row["categorias"].split(";"))
             new_en_venta = st.radio("¿En venta?", ["Si","No"], index=0 if row["en_venta"] else 1, horizontal=True)
-            
+
             actualizar = st.form_submit_button("💾 Actualizar")
             if actualizar:
                 try:
@@ -127,13 +123,11 @@ if rows:
                 except Exception as e:
                     st.error(f"❌ {str(e)}")
 
-    # ---------- Botón para borrar todo ----------
     if st.button("⚠️ Borrar toda la tabla de productos"):
-        supabase.table("confiteria-duicino").delete().neq("id_product", 0).execute()
+        supabase.table("confiteria-duicino").delete().execute()
         st.warning("⚠️ Toda la data ha sido eliminada")
         st.rerun()
 
-    # ---------- Botón para descargar ----------
     df = pd.DataFrame(rows)
     st.download_button(
         label="📥 Descargar CSV",
