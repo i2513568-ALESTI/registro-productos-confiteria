@@ -146,7 +146,7 @@ if rows:
     st.divider()
     col1, col2 = st.columns([1, 3])
     if col1.button("⚠️ Borrar toda la tabla"):
-        supabase.table("confiteria-duicino").delete().execute()
+        supabase.table("confiteria-duicino").delete().neq("id_product", 0).execute()
         st.warning("⚠️ Todos los productos han sido eliminados")
         st.rerun()
 
