@@ -3,6 +3,7 @@ from datetime import datetime
 from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
+import pandas as pd
 
 # ------------------- CONFIG -------------------
 load_dotenv()
@@ -67,7 +68,7 @@ with st.form("form-producto", clear_on_submit=True):
     if submitted:
         try:
             nombre, precio, categorias, en_venta = validate(nombre, precio, categorias, en_venta_label)
-            supabase.table("products").insert({
+            supabase.table("confiteria_duicino").insert({
                 "nombre": nombre,
                 "precio": precio,
                 "categorias": ";".join(categorias),
@@ -82,13 +83,13 @@ with st.form("form-producto", clear_on_submit=True):
 # ---------- Mostrar tabla ----------
 st.subheader("📋 Lista de productos registrados")
 
-data = supabase.table("products").select("*").execute()
+data = supabase.table("confiteria_duicino").select("*").execute()
 rows = data.data if data.data else []
 
 if rows:
     for row in rows:
         with st.expander(f"🟢 {row['nombre']} (S/{row['precio']})"):
-            st.write(f"**ID:** {row['id_product']}")
+            st.write(f"**ID:** {row['id_product']}")  # ⚠️ cámbialo a row['id'] si tu tabla usa 'id'
             st.write(f"**Categorías:** {row['categorias']}")
             st.write(f"**En venta:** {'✅ Sí' if row['en_venta'] else '❌ No'}")
             st.write(f"**Fecha registro:** {row['ts']}")
@@ -96,7 +97,7 @@ if rows:
             col1, col2 = st.columns(2)
             # Botón eliminar
             if col1.button("🗑️ Eliminar", key=f"delete-{row['id_product']}"):
-                supabase.table("products").delete().eq("id_product", row["id_product"]).execute()
+                supabase.table("confiteria_duicino").delete().eq("id_product", row["id_product"]).execute()
                 st.rerun()
 
             # Botón editar
@@ -106,7 +107,7 @@ if rows:
     # ---------- Editar producto ----------
     if "edit_id" in st.session_state:
         edit_id = st.session_state["edit_id"]
-        row = supabase.table("products").select("*").eq("id_product", edit_id).execute().data[0]
+        row = supabase.table("confiteria_duicino").select("*").eq("id_product", edit_id).execute().data[0]
 
         st.subheader(f"✏️ Editar producto: {row['nombre']}")
         with st.form("form-editar", clear_on_submit=False):
@@ -119,7 +120,7 @@ if rows:
             if actualizar:
                 try:
                     nombre, precio, categorias, en_venta = validate(new_nombre, new_precio, new_categorias, new_en_venta)
-                    supabase.table("products").update({
+                    supabase.table("confiteria_duicino").update({
                         "nombre": nombre,
                         "precio": precio,
                         "categorias": ";".join(categorias),
@@ -134,17 +135,16 @@ if rows:
 
     # ---------- Botón para borrar todo ----------
     if st.button("⚠️ Borrar toda la tabla de productos"):
-        supabase.table("products").delete().neq("id_product", 0).execute()
+        supabase.table("confiteria_duicino").delete().neq("id_product", 0).execute()
         st.warning("⚠️ Toda la data ha sido eliminada")
         st.rerun()
 
     # ---------- Botón para descargar ----------
-    import pandas as pd
     df = pd.DataFrame(rows)
     st.download_button(
         label="📥 Descargar CSV",
         data=df.to_csv(index=False).encode("utf-8"),
-        file_name="products.csv",
+        file_name="confiteria_duicino.csv",
         mime="text/csv",
     )
 else:
