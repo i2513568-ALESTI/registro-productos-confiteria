@@ -50,6 +50,39 @@ def validar(nombre: str, precio: float, categorias: list[str]) -> str | None:
 # ------------------------------------------
 # Funciones CRUD
 # ------------------------------------------
+def format_time_ago(timestamp_str):
+    """Convierte timestamp a formato relativo legible"""
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        
+        diff = now - ts
+        
+        if diff.days > 0:
+            if diff.days == 1:
+                return "Ayer"
+            elif diff.days < 7:
+                return f"Hace {diff.days} días"
+            else:
+                return ts.strftime('%d/%m/%Y')
+        elif diff.seconds >= 3600:
+            hours = diff.seconds // 3600
+            if hours == 1:
+                return "Hace 1 hora"
+            else:
+                return f"Hace {hours} horas"
+        elif diff.seconds >= 60:
+            minutes = diff.seconds // 60
+            if minutes == 1:
+                return "Hace 1 minuto"
+            else:
+                return f"Hace {minutes} minutos"
+        else:
+            return "Ahora mismo"
+    except:
+        return timestamp_str
+
 def sb_list() -> pd.DataFrame:
     res = (
         supabase.table(TABLE_NAME)
@@ -57,7 +90,14 @@ def sb_list() -> pd.DataFrame:
         .order("ts", desc=True)
         .execute()
     )
-    return pd.DataFrame(res.data or [])
+    df = pd.DataFrame(res.data or [])
+    
+    # Convertir timestamp a formato legible
+    if not df.empty and 'ts' in df.columns:
+        df['registrado'] = df['ts'].apply(format_time_ago)
+        df = df.drop(columns=['ts'])
+    
+    return df
 
 def sb_insert(nombre: str, precio: float, categorias: list, en_venta: bool):
     payload = {
@@ -191,6 +231,21 @@ else:
 
     # Mostrar tabla paginada (con campos bonitos)
     df_page_view = df_page.drop(columns=["categorias_list"])
+    
+    # Renombrar columnas para mejor visualización
+    df_page_view = df_page_view.rename(columns={
+        'id_product': 'ID',
+        'nombre': 'Producto',
+        'precio': 'Precio (S/)',
+        'categorias': 'Categorías',
+        'en_venta': 'En Venta',
+        'registrado': 'Registrado'
+    })
+    
+    # Formatear precio y en_venta
+    df_page_view['Precio (S/)'] = df_page_view['Precio (S/)'].apply(lambda x: f"S/ {x:.2f}")
+    df_page_view['En Venta'] = df_page_view['En Venta'].apply(lambda x: "✅ Sí" if x else "❌ No")
+    
     st.dataframe(df_page_view, use_container_width=True)
     if total_pages > 1:
         st.caption(f"Mostrando productos {start_idx + 1} a {end_idx} de {total_items}")
